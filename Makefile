@@ -8,4 +8,4 @@ ifdef VERB
 endif
 
 test:
-	cargo test -- $(testflags)
+	cargo test -- $(testflags) $(ARGS)
