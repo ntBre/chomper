@@ -56,7 +56,7 @@ impl Parser {
         ret
     }
 
-    pub(super) fn parse(mut self) -> (Vec<Atom>, Vec<Bond>) {
+    pub(super) fn parse(&mut self) -> (Vec<Atom>, Vec<Bond>) {
         let mut atoms = Vec::new();
         let mut bonds: Vec<Bond> = Vec::new();
         // for updating bonds. this is not going to work at all for groupings
@@ -77,6 +77,7 @@ impl Parser {
                     atoms.extend(a);
                     bonds.extend(b);
                 }
+                Token::RParen => break, // for recursive calls from grouping
                 _ => {
                     let mut bond = self.bond();
                     bond.atom1 = atom1;
@@ -116,12 +117,9 @@ impl Parser {
 
     fn grouping(&mut self) -> (Vec<Atom>, Vec<Bond>) {
         self.advance(); // discard LParen
-        let mut tokens = Vec::new();
-        while !matches!(self.peek(), Token::RParen) {
-            tokens.push(self.advance());
-        }
+        let ret = self.parse();
         self.advance(); // discard closing RParen
-        Parser::new(tokens).parse()
+        ret
     }
 
     fn bond(&mut self) -> Bond {

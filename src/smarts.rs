@@ -63,7 +63,7 @@ pub struct Smarts {
 impl Smarts {
     pub fn parse(s: String) -> Self {
         let tokens = scan(s);
-        let parser = Parser::new(tokens);
+        let mut parser = Parser::new(tokens);
         let (atoms, bonds) = parser.parse();
         Self { atoms, bonds }
     }
