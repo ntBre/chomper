@@ -1,10 +1,10 @@
-use chomper::Dataset;
+use chomper::{rdkit::to_smarts, Dataset};
 
 fn main() {
     let mut smiles = Dataset::load("testfiles/opt.json").unwrap().to_smiles();
     smiles.dedup();
     for smile in smiles {
-        println!("{smile:.80}");
+        println!("{:.80}", to_smarts(smile));
     }
 }
 

@@ -2,6 +2,8 @@ use std::{collections::HashMap, error::Error, fs::File, path::Path};
 
 use serde::Deserialize;
 
+pub mod rdkit;
+
 #[derive(Deserialize)]
 struct Record {
     cmiles: String,
