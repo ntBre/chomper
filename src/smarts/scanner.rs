@@ -1,6 +1,6 @@
 use std::{iter::Peekable, str::Chars};
 
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub(super) enum Token {
     // punctuation
     LBrack,
@@ -22,6 +22,16 @@ pub(super) enum Token {
     DownBond,
     // end
     End,
+}
+
+impl Token {
+    /// Returns `true` if the token is [`End`].
+    ///
+    /// [`End`]: Token::End
+    #[must_use]
+    pub(super) fn is_end(&self) -> bool {
+        matches!(self, Self::End)
+    }
 }
 
 fn get_digits(chars: &mut Peekable<Chars<'_>>) -> String {
@@ -69,6 +79,7 @@ pub(super) fn scan(s: String) -> Vec<Token> {
         };
         ret.push(got);
     }
+    ret.push(T::End);
     ret
 }
 
