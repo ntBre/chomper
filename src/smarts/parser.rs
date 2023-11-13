@@ -164,27 +164,28 @@ impl Parser {
 
             match self.advance() {
                 Token::Dash => order = BondOrder::Single,
-                Token::Colon => {
-                    // ring_marker can come on either side of the order symbols.
-                    // TODO handle dash case too
-                    if let Token::Digit(n) = self.peek() {
-                        ring_marker = Some(*n);
-                        self.advance();
-                    }
-                    order = BondOrder::Aromatic;
-                }
                 Token::DoubleBond => order = BondOrder::Double,
+                // Token::Colon => {
+                //     // ring_marker can come on either side of the order symbols.
+                //     // TODO handle dash case too
+                //     if let Token::Digit(n) = self.peek() {
+                //         ring_marker = Some(*n);
+                //         self.advance();
+                //     }
+                //     order = BondOrder::Aromatic;
+                // }
                 Token::Digit(n) => {
                     ring_marker = Some(n);
-                    match self.advance() {
-                        Token::Dash => order = BondOrder::Single,
-                        Token::Colon => order = BondOrder::Aromatic,
-                        Token::DoubleBond => order = BondOrder::Double,
-                        Token::End => break,
-                        x => self.error("inner bond", x),
-                    }
                 }
-                Token::End => break,
+                //     match self.advance() {
+                //         Token::Dash => order = BondOrder::Single,
+                //         Token::Colon => order = BondOrder::Aromatic,
+                //         Token::DoubleBond => order = BondOrder::Double,
+                //         Token::End => break,
+                //         x => self.error("inner bond", x),
+                //     }
+                // }
+                // Token::End => break,
                 x => self.error("bond", x),
             }
         }
@@ -226,12 +227,57 @@ mod tests {
     }
 
     #[test]
+    fn parse_problems() {
+        let smiles = [
+            "[H:12][C:1]([H:13])([H:14])[C:2]([H:15])([C:3](=[O:4])[C:5]1=[N:6]\
+             [S:7](=[O:8])[O:9][N:10]1[H:16])[O:11][H:17]"
+        ];
+        use BondOrder as B;
+        let wants = [(
+            vec![
+                //
+                Atom::new(6, 3, 0, 1),
+                Atom::new(6, 1, 0, 2),
+                Atom::new(6, 0, 0, 3),
+                Atom::new(8, 0, 0, 4),
+                Atom::new(6, 0, 0, 5),
+                Atom::new(7, 0, 0, 6),
+                Atom::new(16, 0, 0, 7),
+                Atom::new(8, 0, 0, 8),
+                Atom::new(8, 0, 0, 9),
+                Atom::new(7, 1, 0, 10),
+                Atom::new(8, 1, 0, 11),
+            ],
+            vec![
+                //
+                Bond::new(1, 2, B::Single, None),
+                Bond::new(0, 0, B::Single, None),
+                Bond::new(0, 0, B::Double, None),
+                Bond::new(3, 5, B::Single, None),
+                Bond::new(5, 6, B::Double, Some(1)),
+                Bond::new(6, 7, B::Single, None),
+                Bond::new(0, 0, B::Double, None),
+                Bond::new(7, 9, B::Single, None),
+                Bond::new(9, 10, B::Single, None),
+                Bond::new(10, 0, B::Single, Some(1)),
+                Bond::new(2, 11, B::Single, None),
+            ],
+        )];
+        for (i, smile) in smiles.into_iter().enumerate() {
+            let got =
+                Parser::new(scan(dbg!(to_smarts(smile.to_owned())))).parse();
+            let want = &wants[i];
+            assert_eq!(got.1, want.1);
+        }
+    }
+
+    #[test]
     fn parse_all() {
         let mut smiles =
             Dataset::load("testfiles/opt.json").unwrap().to_smiles();
         smiles.dedup();
         for smile in smiles {
-            let smarts = to_smarts(smile);
+            let smarts = to_smarts(dbg!(smile));
             let tokens = scan(smarts);
             Parser::new(tokens).parse();
         }
