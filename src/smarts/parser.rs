@@ -235,7 +235,6 @@ mod tests {
         use BondOrder as B;
         let wants = [(
             vec![
-                //
                 Atom::new(6, 3, 0, 1),
                 Atom::new(6, 1, 0, 2),
                 Atom::new(6, 0, 0, 3),
@@ -249,7 +248,11 @@ mod tests {
                 Atom::new(8, 1, 0, 11),
             ],
             vec![
-                //
+                // TODO these are *not* correct, obviously. I'm wondering if I
+                // actually need to parse into something like an AST and then
+                // evaluate afterward, more like Lox. Otherwise, I'm not sure
+                // how to get the bond indices right. Unless I can just keep
+                // track with a couple of fields on the Parser itself
                 Bond::new(1, 2, B::Single, None),
                 Bond::new(0, 0, B::Single, None),
                 Bond::new(0, 0, B::Double, None),
