@@ -1,7 +1,7 @@
 use std::{iter::Peekable, str::Chars};
 
 #[derive(Debug)]
-enum Token {
+pub(super) enum Token {
     // punctuation
     LBrack,
     RBrack,
@@ -32,7 +32,7 @@ fn get_digits(chars: &mut Peekable<Chars<'_>>) -> String {
     digits
 }
 
-fn scan(s: String) -> Vec<Token> {
+pub(super) fn scan(s: String) -> Vec<Token> {
     use Token as T;
     let mut chars = s.chars().peekable();
     let mut ret = Vec::new();
