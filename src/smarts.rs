@@ -11,6 +11,7 @@ mod scanner;
 pub struct Atom {
     pub atomic_number: usize,
     pub n_hydrogens: usize,
+    pub charge: isize,
     pub mol_index: usize,
 }
 
@@ -18,11 +19,13 @@ impl Atom {
     pub fn new(
         atomic_number: usize,
         n_hydrogens: usize,
+        charge: isize,
         mol_index: usize,
     ) -> Self {
         Self {
             atomic_number,
             n_hydrogens,
+            charge,
             mol_index,
         }
     }
@@ -43,14 +46,22 @@ pub struct Bond {
     pub atom1: usize,
     pub atom2: usize,
     pub order: BondOrder,
+    /// optional digit for specifying a backreference to a connection
+    pub ring_marker: Option<usize>,
 }
 
 impl Bond {
-    pub fn new(atom1: usize, atom2: usize, order: BondOrder) -> Self {
+    pub fn new(
+        atom1: usize,
+        atom2: usize,
+        order: BondOrder,
+        ring_marker: Option<usize>,
+    ) -> Self {
         Self {
             atom1,
             atom2,
             order,
+            ring_marker,
         }
     }
 }

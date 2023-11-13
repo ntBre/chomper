@@ -39,6 +39,12 @@ impl Parser {
         Self { tokens, cur: 0 }
     }
 
+    fn context(&self, n: usize) -> &[Token] {
+        let beg = self.cur.saturating_sub(n);
+        let end = self.cur + n;
+        &self.tokens[beg..end.min(self.tokens.len())]
+    }
+
     #[inline]
     fn at_end(&self) -> bool {
         self.peek().is_end()
@@ -93,6 +99,7 @@ impl Parser {
         let mut atomic_number = 0;
         let mut n_hydrogens = 0;
         let mut mol_index = 0;
+        let mut charge = 0;
         loop {
             match self.advance() {
                 Token::Atom(n) => atomic_number = n,
@@ -103,16 +110,36 @@ impl Parser {
                     };
                     mol_index = i;
                 }
+                Token::Plus(n) => charge = n as isize,
+                Token::Dash => {
+                    let t = self.peek().clone();
+                    let n = if let Token::Digit(n) = t {
+                        self.advance();
+                        n
+                    } else {
+                        1
+                    };
+                    charge = -(n as isize);
+                }
                 Token::RBrack => break,
                 Token::End => panic!("EOF while parsing atom"),
-                x => panic!("unknown atom component: {x:?}"),
+                x => self.error("atom", x),
             };
         }
         Atom {
             atomic_number,
             n_hydrogens,
+            charge,
             mol_index,
         }
+    }
+
+    fn error(&self, label: &str, t: Token) -> ! {
+        panic!(
+            "unknown {label} component {t:?} at {}: {:?}",
+            self.cur,
+            self.context(5)
+        )
     }
 
     fn grouping(&mut self) -> (Vec<Atom>, Vec<Bond>) {
@@ -127,27 +154,52 @@ impl Parser {
         // that up after the call. in fact, we can only determine the bond order
         // from what we're parsing here
         let mut order = BondOrder::Single;
+        let mut ring_marker = None;
         loop {
-            if matches!(self.peek(), Token::LBrack) {
-                break; // signals start of next atom, don't consume
+            if matches!(self.peek(), Token::LBrack | Token::RParen) {
+                // signals start of next atom or end of current group, don't
+                // consume in either case
+                break;
             }
 
             match self.advance() {
                 Token::Dash => order = BondOrder::Single,
-                x => panic!("unknown bond component: {x:?}"),
+                Token::Colon => {
+                    // ring_marker can come on either side of the order symbols.
+                    // TODO handle dash case too
+                    if let Token::Digit(n) = self.peek() {
+                        ring_marker = Some(*n);
+                        self.advance();
+                    }
+                    order = BondOrder::Aromatic;
+                }
+                Token::DoubleBond => order = BondOrder::Double,
+                Token::Digit(n) => {
+                    ring_marker = Some(n);
+                    match self.advance() {
+                        Token::Dash => order = BondOrder::Single,
+                        Token::Colon => order = BondOrder::Aromatic,
+                        Token::DoubleBond => order = BondOrder::Double,
+                        Token::End => break,
+                        x => self.error("inner bond", x),
+                    }
+                }
+                Token::End => break,
+                x => self.error("bond", x),
             }
         }
         Bond {
             atom1: 0,
             atom2: 0,
             order,
+            ring_marker,
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::smarts::scanner::scan;
+    use crate::{rdkit::to_smarts, smarts::scanner::scan, Dataset};
 
     use super::*;
 
@@ -157,19 +209,31 @@ mod tests {
         let tokens = scan(s.to_owned());
         let got = Parser::new(tokens).parse();
         let want_atoms = vec![
-            Atom::new(6, 3, 1),
-            Atom::new(6, 2, 2),
-            Atom::new(7, 1, 3),
-            Atom::new(7, 1, 4),
-            Atom::new(6, 3, 5),
+            Atom::new(6, 3, 0, 1),
+            Atom::new(6, 2, 0, 2),
+            Atom::new(7, 1, 0, 3),
+            Atom::new(7, 1, 0, 4),
+            Atom::new(6, 3, 0, 5),
         ];
         use BondOrder as B;
         let want_bonds = vec![
-            Bond::new(1, 2, B::Single),
-            Bond::new(2, 3, B::Single),
-            Bond::new(3, 4, B::Single),
-            Bond::new(4, 5, B::Single),
+            Bond::new(1, 2, B::Single, None),
+            Bond::new(2, 3, B::Single, None),
+            Bond::new(3, 4, B::Single, None),
+            Bond::new(4, 5, B::Single, None),
         ];
         assert_eq!(got, (want_atoms, want_bonds));
+    }
+
+    #[test]
+    fn parse_all() {
+        let mut smiles =
+            Dataset::load("testfiles/opt.json").unwrap().to_smiles();
+        smiles.dedup();
+        for smile in smiles {
+            let smarts = to_smarts(smile);
+            let tokens = scan(smarts);
+            Parser::new(tokens).parse();
+        }
     }
 }
