@@ -58,16 +58,30 @@ impl Parser {
 
     pub(super) fn parse(mut self) -> (Vec<Atom>, Vec<Bond>) {
         let mut atoms = Vec::new();
-        let mut bonds = Vec::new();
+        let mut bonds: Vec<Bond> = Vec::new();
+        // for updating bonds. this is not going to work at all for groupings
+        let mut atom1 = 0;
         while !self.at_end() {
             match self.peek() {
-                Token::LBrack => atoms.push(self.atom()),
+                Token::LBrack => {
+                    let atom = self.atom();
+                    if !atoms.is_empty() {
+                        // a bond must have come before
+                        bonds.last_mut().unwrap().atom2 = atom.mol_index;
+                    }
+                    atom1 = atom.mol_index;
+                    atoms.push(atom);
+                }
                 Token::LParen => {
                     let (a, b) = self.grouping();
                     atoms.extend(a);
                     bonds.extend(b);
                 }
-                _ => bonds.push(self.bond()),
+                _ => {
+                    let mut bond = self.bond();
+                    bond.atom1 = atom1;
+                    bonds.push(bond)
+                }
             }
         }
         (atoms, bonds)
@@ -143,7 +157,21 @@ mod tests {
     fn parse_single() {
         let s = r#"[#6H3:1]-[#6H2:2]-[#7H:3]-[#7H:4]-[#6H3:5]"#;
         let tokens = scan(s.to_owned());
-        let ret = Parser::new(tokens).parse();
-        dbg!(ret);
+        let got = Parser::new(tokens).parse();
+        let want_atoms = vec![
+            Atom::new(6, 3, 1),
+            Atom::new(6, 2, 2),
+            Atom::new(7, 1, 3),
+            Atom::new(7, 1, 4),
+            Atom::new(6, 3, 5),
+        ];
+        use BondOrder as B;
+        let want_bonds = vec![
+            Bond::new(1, 2, B::Single),
+            Bond::new(2, 3, B::Single),
+            Bond::new(3, 4, B::Single),
+            Bond::new(4, 5, B::Single),
+        ];
+        assert_eq!(got, (want_atoms, want_bonds));
     }
 }
