@@ -151,18 +151,17 @@ impl Evaluator {
                     self.atoms.push(a.clone());
                 }
                 Expr::Bond(order) => {
-                    let atom1 = match prev_atom(&g, i) {
+                    let atom1 = match prev_atom(&g, i + 1) {
                         Some(Expr::Atom(a)) => a.mol_index,
                         None => {
-                            // bond is to the atom before the group
-                            let Expr::Atom(a) = self.prev_atom() else {
-                                unreachable!();
-                            };
-                            a.mol_index
+                            // bond is to the atom before the group. can't use
+                            // self.prev_atom because we could be in a recursive
+                            // group
+                            self.atoms.last().unwrap().mol_index
                         }
                         _ => unreachable!(),
                     };
-                    let atom2 = match &g[i + 1] {
+                    let atom2 = match giter.peek().unwrap().1 {
                         Expr::Atom(a) => a.mol_index,
                         Expr::Connect(n) => {
                             giter.next(); // discard Connect expr
@@ -170,11 +169,13 @@ impl Evaluator {
                         }
                         _ => unreachable!(),
                     };
-                    self.bonds.push(Bond {
+                    let (atom1, atom2) = (atom1.min(atom2), atom1.max(atom2));
+                    let bond = Bond {
                         atom1,
                         atom2,
                         order: order.clone(),
-                    });
+                    };
+                    self.bonds.push(bond);
                 }
                 Expr::Grouping(h) => self.grouping(h.clone()),
                 Expr::Connect(_) => panic!("{i}"),
@@ -187,7 +188,7 @@ impl Evaluator {
 mod tests {
     use crate::{
         rdkit::to_smarts,
-        smarts::{parser::Parser, scanner::scan, Chiral},
+        smarts::{parser::Parser, scanner::scan, Chiral, Smarts},
         Dataset,
     };
 
@@ -199,46 +200,42 @@ mod tests {
             "[H:12][C:1]([H:13])([H:14])[C:2]([H:15])([C:3](=[O:4])[C:5]1=[N:6]\
              [S:7](=[O:8])[O:9][N:10]1[H:16])[O:11][H:17]"
         ];
-        let watoms = vec![
-            Atom::new(6, 3, 0, Chiral::None, 1),
-            Atom::new(6, 1, 0, Chiral::None, 2),
-            Atom::new(6, 0, 0, Chiral::None, 3),
-            Atom::new(8, 0, 0, Chiral::None, 4),
-            Atom::new(6, 0, 0, Chiral::None, 5),
-            Atom::new(7, 0, 0, Chiral::None, 6),
-            Atom::new(16, 0, 0, Chiral::None, 7),
-            Atom::new(8, 0, 0, Chiral::None, 8),
-            Atom::new(8, 0, 0, Chiral::None, 9),
-            Atom::new(7, 1, 0, Chiral::None, 10),
-            Atom::new(8, 1, 0, Chiral::None, 11),
-        ];
         use BondOrder as B;
-        let wbonds = vec![
-            Bond::new(1, 2, B::Single),
-            Bond::new(2, 3, B::Single),
-            Bond::new(2, 11, B::Single),
-            Bond::new(3, 4, B::Double),
-            Bond::new(3, 5, B::Single),
-            Bond::new(5, 6, B::Double),
-            Bond::new(6, 7, B::Single),
-            Bond::new(7, 8, B::Double),
-            Bond::new(7, 9, B::Single),
-            Bond::new(9, 10, B::Single),
-            Bond::new(5, 10, B::Single),
-        ];
-        for smile in smiles {
+        let wants = [Smarts {
+            atoms: vec![
+                Atom::new(6, 3, 0, Chiral::None, 1),
+                Atom::new(6, 1, 0, Chiral::None, 2),
+                Atom::new(6, 0, 0, Chiral::None, 3),
+                Atom::new(8, 0, 0, Chiral::None, 4),
+                Atom::new(6, 0, 0, Chiral::None, 5),
+                Atom::new(7, 0, 0, Chiral::None, 6),
+                Atom::new(16, 0, 0, Chiral::None, 7),
+                Atom::new(8, 0, 0, Chiral::None, 8),
+                Atom::new(8, 0, 0, Chiral::None, 9),
+                Atom::new(7, 1, 0, Chiral::None, 10),
+                Atom::new(8, 1, 0, Chiral::None, 11),
+            ],
+            bonds: vec![
+                Bond::new(1, 2, B::Single),
+                Bond::new(2, 3, B::Single),
+                Bond::new(3, 4, B::Double),
+                Bond::new(3, 5, B::Single),
+                Bond::new(5, 6, B::Double),
+                Bond::new(6, 7, B::Single),
+                Bond::new(7, 8, B::Double),
+                Bond::new(7, 9, B::Single),
+                Bond::new(9, 10, B::Single),
+                Bond::new(5, 10, B::Single),
+                Bond::new(2, 11, B::Single),
+            ],
+        }];
+        for (smile, want) in smiles.into_iter().zip(wants.into_iter()) {
             let smarts = to_smarts(dbg!(smile).to_owned());
             let tokens = scan(dbg!(smarts));
             let p = Parser::new(tokens).parse();
             let (atoms, bonds) = Evaluator::new(dbg!(p)).eval();
-            assert_eq!(atoms, watoms);
-            assert_eq!(bonds, wbonds);
-            for atom in atoms {
-                println!("{atom:?}");
-            }
-            for bond in bonds {
-                println!("{bond:#?}");
-            }
+            assert_eq!(atoms, want.atoms);
+            assert_eq!(bonds, want.bonds);
         }
     }
 
