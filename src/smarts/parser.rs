@@ -25,6 +25,8 @@
 //! then evaluate, but I think I can turn my tokens directly into my desired
 //! Smarts struct
 
+use std::fmt::Debug;
+
 use super::{scanner::Token, Atom, BondOrder, Chiral};
 
 #[derive(Clone, PartialEq)]
@@ -35,7 +37,7 @@ pub enum Expr {
     Connect(usize),
 }
 
-impl std::fmt::Debug for Expr {
+impl Debug for Expr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Expr::Atom(a) => write!(

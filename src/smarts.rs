@@ -1,5 +1,7 @@
 //! SMARTS pattern parser
 
+use std::fmt::Debug;
+
 use crate::smarts::parser::Parser;
 
 use self::{evaluator::Evaluator, scanner::scan};
@@ -54,7 +56,7 @@ pub enum BondOrder {
     Down,
 }
 
-impl std::fmt::Debug for BondOrder {
+impl Debug for BondOrder {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -71,7 +73,8 @@ impl std::fmt::Debug for BondOrder {
         )
     }
 }
-impl std::fmt::Debug for Bond {
+
+impl Debug for Bond {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}{:?}{}", self.atom1, self.order, self.atom2)
     }
