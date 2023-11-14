@@ -51,36 +51,12 @@ impl std::fmt::Debug for Expr {
 }
 
 impl Expr {
-    /// Returns `true` if the expr is [`Connect`].
-    ///
-    /// [`Connect`]: Expr::Connect
-    #[must_use]
-    pub fn is_connect(&self) -> bool {
-        matches!(self, Self::Connect(..))
-    }
-
-    /// Returns `true` if the expr is [`Grouping`].
-    ///
-    /// [`Grouping`]: Expr::Grouping
-    #[must_use]
-    pub fn is_grouping(&self) -> bool {
-        matches!(self, Self::Grouping(..))
-    }
-
     /// Returns `true` if the expr is [`Atom`].
     ///
     /// [`Atom`]: Expr::Atom
     #[must_use]
     pub fn is_atom(&self) -> bool {
         matches!(self, Self::Atom(..))
-    }
-
-    /// Returns `true` if the expr is [`Bond`].
-    ///
-    /// [`Bond`]: Expr::Bond
-    #[must_use]
-    pub fn is_bond(&self) -> bool {
-        matches!(self, Self::Bond(..))
     }
 }
 

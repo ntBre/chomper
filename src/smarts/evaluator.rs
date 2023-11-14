@@ -16,16 +16,6 @@ fn prev_atom(exprs: &[Expr], cur: usize) -> Option<&Expr> {
     None
 }
 
-fn next_atom(exprs: &[Expr], cur: usize) -> Option<&Expr> {
-    for p in cur..exprs.len() {
-        let r = &exprs[p];
-        if !r.is_connect() && !r.is_grouping() {
-            return Some(r);
-        }
-    }
-    None
-}
-
 pub(super) struct Evaluator {
     exprs: Vec<Expr>,
     atoms: Vec<Atom>,
@@ -48,10 +38,6 @@ impl Evaluator {
 
     fn at_end(&self) -> bool {
         self.cur == self.exprs.len()
-    }
-
-    fn prev(&self) -> &Expr {
-        &self.exprs[self.cur - 2]
     }
 
     fn peek(&self) -> Option<&Expr> {
