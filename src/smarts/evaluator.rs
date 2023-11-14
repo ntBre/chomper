@@ -92,10 +92,21 @@ impl Evaluator {
             Expr::Grouping(g) => {
                 self.grouping(g);
             }
-            Expr::Connect(_) => {
-                todo!()
+            Expr::Connect(n) => {
+                // should only encounter this with adjacent Connects, use
+                // previous atom's index
+                let a = self.atoms.last().unwrap().mol_index;
+                self.add_connection(n, a);
             }
         }
+    }
+
+    fn add_connection(&mut self, n: usize, a: usize) {
+        self.ctab.entry(n).or_insert(Vec::new()).push(a);
+    }
+
+    fn get_connection(&mut self, n: usize) -> usize {
+        self.ctab.get_mut(&n).unwrap().pop().unwrap()
     }
 
     fn bond(&mut self, order: BondOrder) {
@@ -120,10 +131,6 @@ impl Evaluator {
             atom2,
             order,
         });
-    }
-
-    fn get_connection(&mut self, n: usize) -> usize {
-        self.ctab.get_mut(&n).unwrap().pop().unwrap()
     }
 
     fn atom(&mut self, a: Atom) {
@@ -178,7 +185,11 @@ impl Evaluator {
                     self.bonds.push(bond);
                 }
                 Expr::Grouping(h) => self.grouping(h.clone()),
-                Expr::Connect(_) => panic!("{i}"),
+                Expr::Connect(n) => {
+                    // adjacent connects
+                    let a = self.atoms.last().unwrap().mol_index;
+                    self.add_connection(*n, a);
+                }
             }
         }
     }
@@ -230,10 +241,10 @@ mod tests {
             ],
         }];
         for (smile, want) in smiles.into_iter().zip(wants.into_iter()) {
-            let smarts = to_smarts(dbg!(smile).to_owned());
-            let tokens = scan(dbg!(smarts));
+            let smarts = to_smarts(smile.to_owned());
+            let tokens = scan(smarts);
             let p = Parser::new(tokens).parse();
-            let (atoms, bonds) = Evaluator::new(dbg!(p)).eval();
+            let (atoms, bonds) = Evaluator::new(p).eval();
             assert_eq!(atoms, want.atoms);
             assert_eq!(bonds, want.bonds);
         }
@@ -245,10 +256,10 @@ mod tests {
             Dataset::load("testfiles/opt.json").unwrap().to_smiles();
         smiles.dedup();
         for smile in smiles {
-            let smarts = to_smarts(dbg!(smile));
-            let tokens = scan(dbg!(smarts));
+            let smarts = to_smarts(smile);
+            let tokens = scan(smarts);
             let p = Parser::new(tokens).parse();
-            Evaluator::new(dbg!(p)).eval();
+            Evaluator::new(p).eval();
         }
     }
 }
