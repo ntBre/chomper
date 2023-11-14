@@ -7,7 +7,7 @@ use self::scanner::scan;
 mod parser;
 mod scanner;
 
-#[derive(Default, Debug, PartialEq)]
+#[derive(Clone, Default, Debug, PartialEq)]
 pub enum Chiral {
     Cw,
     Acw,
@@ -15,7 +15,7 @@ pub enum Chiral {
     None,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Atom {
     pub atomic_number: usize,
     pub n_hydrogens: usize,
@@ -42,7 +42,7 @@ impl Atom {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum BondOrder {
     Single,
     Double,
@@ -106,7 +106,8 @@ impl Smarts {
     pub fn parse(s: String) -> Self {
         let tokens = scan(s);
         let mut parser = Parser::new(tokens);
-        let (atoms, bonds) = parser.parse();
-        Self { atoms, bonds }
+        let _ = parser.parse();
+        todo!()
+        // Self { atoms, bonds }
     }
 }

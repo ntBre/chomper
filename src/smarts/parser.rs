@@ -25,7 +25,15 @@
 //! then evaluate, but I think I can turn my tokens directly into my desired
 //! Smarts struct
 
-use super::{scanner::Token, Atom, Bond, BondOrder, Chiral};
+use super::{scanner::Token, Atom, BondOrder, Chiral};
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum Expr {
+    Atom(Atom),
+    Bond(BondOrder),
+    Grouping(Vec<Expr>),
+    Connect(usize),
+}
 
 pub(super) struct Parser {
     /// `tokens` represents a single input SMARTS string decomposed into a
@@ -62,39 +70,40 @@ impl Parser {
         ret
     }
 
-    pub(super) fn parse(&mut self) -> (Vec<Atom>, Vec<Bond>) {
-        let mut atoms = Vec::new();
-        let mut bonds: Vec<Bond> = Vec::new();
+    // Vec<Expr>:
+    // Expr::Atom
+    // Expr::Bond(Single)
+    // Expr::Atom
+    // Expr::Grouping
+    //   Expr::Bond(Single)
+    //   Expr::Atom
+    //   Expr::Grouping
+    //     Expr::Bond(Double)
+    //     Expr::Atom
+    //   Expr::Bond
+    //   Expr::Atom
+    //   Expr::Connection(1)
+    //   Expr::Bond
+
+    pub(super) fn parse(&mut self) -> Vec<Expr> {
         // for updating bonds. this is not going to work at all for groupings
-        let mut atom1 = 0;
+        let mut ret = Vec::new();
         while !self.at_end() {
             match self.peek() {
-                Token::LBrack => {
-                    let atom = self.atom();
-                    if !atoms.is_empty() {
-                        // a bond must have come before
-                        bonds.last_mut().unwrap().atom2 = atom.mol_index;
-                    }
-                    atom1 = atom.mol_index;
-                    atoms.push(atom);
-                }
-                Token::LParen => {
-                    let (a, b) = self.grouping();
-                    atoms.extend(a);
-                    bonds.extend(b);
-                }
+                Token::LBrack => ret.push(self.atom()),
+                Token::LParen => ret.push(self.grouping()),
                 Token::RParen => break, // for recursive calls from grouping
-                _ => {
-                    let mut bond = self.bond();
-                    bond.atom1 = atom1;
-                    bonds.push(bond)
+                Token::Digit(n) => {
+                    ret.push(Expr::Connect(*n));
+                    self.advance();
                 }
+                _ => ret.push(self.bond()),
             }
         }
-        (atoms, bonds)
+        ret
     }
 
-    fn atom(&mut self) -> Atom {
+    fn atom(&mut self) -> Expr {
         self.advance(); // discard LBrack signaling we're in here
         let mut chirality = Chiral::None;
         let mut atomic_number = 0;
@@ -129,13 +138,13 @@ impl Parser {
                 x => self.error("atom", x),
             };
         }
-        Atom {
+        Expr::Atom(Atom {
             atomic_number,
             n_hydrogens,
             charge,
             chirality,
             mol_index,
-        }
+        })
     }
 
     fn error(&self, label: &str, t: Token) -> ! {
@@ -146,23 +155,22 @@ impl Parser {
         )
     }
 
-    fn grouping(&mut self) -> (Vec<Atom>, Vec<Bond>) {
+    fn grouping(&mut self) -> Expr {
         self.advance(); // discard LParen
         let ret = self.parse();
         self.advance(); // discard closing RParen
-        ret
+        Expr::Grouping(ret)
     }
 
-    fn bond(&mut self) -> Bond {
+    fn bond(&mut self) -> Expr {
         // we can't actually know atom2 when we call this. we'll have to tidy
         // that up after the call. in fact, we can only determine the bond order
         // from what we're parsing here
         let mut order = BondOrder::Single;
-        let mut ring_marker = None;
         loop {
             if matches!(
                 self.peek(),
-                Token::LBrack | Token::RParen | Token::LParen
+                Token::LBrack | Token::RParen | Token::LParen | Token::Digit(_)
             ) {
                 // signals start of next atom, end of current group, or
                 // beginning of nested group. in any case don't consume
@@ -177,17 +185,11 @@ impl Parser {
                 Token::At => order = BondOrder::Ring,
                 Token::DownBond => order = BondOrder::Down,
                 Token::UpBond => order = BondOrder::Up,
-                Token::Digit(n) => ring_marker = Some(n),
                 Token::End => break,
                 x => self.error("bond", x),
             }
         }
-        Bond {
-            atom1: 0,
-            atom2: 0,
-            order,
-            ring_marker,
-        }
+        Expr::Bond(order)
     }
 }
 
@@ -202,21 +204,18 @@ mod tests {
         let s = r#"[#6H3:1]-[#6H2:2]-[#7H:3]-[#7H:4]-[#6H3:5]"#;
         let tokens = scan(s.to_owned());
         let got = Parser::new(tokens).parse();
-        let want_atoms = vec![
-            Atom::new(6, 3, 0, Chiral::None, 1),
-            Atom::new(6, 2, 0, Chiral::None, 2),
-            Atom::new(7, 1, 0, Chiral::None, 3),
-            Atom::new(7, 1, 0, Chiral::None, 4),
-            Atom::new(6, 3, 0, Chiral::None, 5),
+        let want = vec![
+            Expr::Atom(Atom::new(6, 3, 0, Chiral::None, 1)),
+            Expr::Bond(BondOrder::Single),
+            Expr::Atom(Atom::new(6, 2, 0, Chiral::None, 2)),
+            Expr::Bond(BondOrder::Single),
+            Expr::Atom(Atom::new(7, 1, 0, Chiral::None, 3)),
+            Expr::Bond(BondOrder::Single),
+            Expr::Atom(Atom::new(7, 1, 0, Chiral::None, 4)),
+            Expr::Bond(BondOrder::Single),
+            Expr::Atom(Atom::new(6, 3, 0, Chiral::None, 5)),
         ];
-        use BondOrder as B;
-        let want_bonds = vec![
-            Bond::new(1, 2, B::Single, None),
-            Bond::new(2, 3, B::Single, None),
-            Bond::new(3, 4, B::Single, None),
-            Bond::new(4, 5, B::Single, None),
-        ];
-        assert_eq!(got, (want_atoms, want_bonds));
+        assert_eq!(got, want);
     }
 
     #[test]
@@ -226,44 +225,43 @@ mod tests {
              [S:7](=[O:8])[O:9][N:10]1[H:16])[O:11][H:17]"
         ];
         use BondOrder as B;
-        let wants = [(
-            vec![
-                Atom::new(6, 3, 0, Chiral::None, 1),
-                Atom::new(6, 1, 0, Chiral::None, 2),
-                Atom::new(6, 0, 0, Chiral::None, 3),
-                Atom::new(8, 0, 0, Chiral::None, 4),
-                Atom::new(6, 0, 0, Chiral::None, 5),
-                Atom::new(7, 0, 0, Chiral::None, 6),
-                Atom::new(16, 0, 0, Chiral::None, 7),
-                Atom::new(8, 0, 0, Chiral::None, 8),
-                Atom::new(8, 0, 0, Chiral::None, 9),
-                Atom::new(7, 1, 0, Chiral::None, 10),
-                Atom::new(8, 1, 0, Chiral::None, 11),
-            ],
-            vec![
-                // TODO these are *not* correct, obviously. I'm wondering if I
-                // actually need to parse into something like an AST and then
-                // evaluate afterward, more like Lox. Otherwise, I'm not sure
-                // how to get the bond indices right. Unless I can just keep
-                // track with a couple of fields on the Parser itself
-                Bond::new(1, 2, B::Single, None),
-                Bond::new(2, 3, B::Single, None),
-                Bond::new(3, 4, B::Double, None),
-                Bond::new(3, 5, B::Single, None),
-                Bond::new(5, 6, B::Double, Some(1)),
-                Bond::new(6, 7, B::Single, None),
-                Bond::new(7, 8, B::Double, None),
-                Bond::new(7, 9, B::Single, None),
-                Bond::new(9, 10, B::Single, None),
-                Bond::new(10, 5, B::Single, Some(1)),
-                Bond::new(2, 11, B::Single, None),
-            ],
-        )];
+        let wants = [vec![
+            Expr::Atom(Atom::new(6, 3, 0, Chiral::None, 1)),
+            Expr::Bond(B::Single),
+            Expr::Atom(Atom::new(6, 1, 0, Chiral::None, 2)),
+            Expr::Grouping(vec![
+                Expr::Bond(B::Single),
+                Expr::Atom(Atom::new(6, 0, 0, Chiral::None, 3)),
+                Expr::Grouping(vec![
+                    Expr::Bond(B::Double),
+                    Expr::Atom(Atom::new(8, 0, 0, Chiral::None, 4)),
+                ]),
+                Expr::Bond(B::Single),
+                Expr::Atom(Atom::new(6, 0, 0, Chiral::None, 5)),
+                Expr::Connect(1),
+                Expr::Bond(B::Double),
+                Expr::Atom(Atom::new(7, 0, 0, Chiral::None, 6)),
+                Expr::Bond(B::Single),
+                Expr::Atom(Atom::new(16, 0, 0, Chiral::None, 7)),
+                Expr::Grouping(vec![
+                    Expr::Bond(B::Double),
+                    Expr::Atom(Atom::new(8, 0, 0, Chiral::None, 8)),
+                ]),
+                Expr::Bond(B::Single),
+                Expr::Atom(Atom::new(8, 0, 0, Chiral::None, 9)),
+                Expr::Bond(B::Single),
+                Expr::Atom(Atom::new(7, 1, 0, Chiral::None, 10)),
+                Expr::Bond(B::Single),
+                Expr::Connect(1),
+            ]),
+            Expr::Bond(B::Single),
+            Expr::Atom(Atom::new(8, 1, 0, Chiral::None, 11)),
+        ]];
         for (i, smile) in smiles.into_iter().enumerate() {
-            let smarts = to_smarts(dbg!(smile).to_owned());
-            let got = Parser::new(scan(dbg!(smarts))).parse();
-            let want = &wants[i];
-            assert_eq!(got.1, want.1);
+            let smarts = to_smarts(smile.to_owned());
+            let got = Parser::new(scan(smarts)).parse();
+            let want = wants[i].clone();
+            assert_eq!(got, want);
         }
     }
 
