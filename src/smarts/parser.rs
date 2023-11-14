@@ -247,20 +247,21 @@ mod tests {
                 // how to get the bond indices right. Unless I can just keep
                 // track with a couple of fields on the Parser itself
                 Bond::new(1, 2, B::Single, None),
-                Bond::new(0, 0, B::Single, None),
-                Bond::new(0, 0, B::Double, None),
+                Bond::new(2, 3, B::Single, None),
+                Bond::new(3, 4, B::Double, None),
                 Bond::new(3, 5, B::Single, None),
                 Bond::new(5, 6, B::Double, Some(1)),
                 Bond::new(6, 7, B::Single, None),
-                Bond::new(0, 0, B::Double, None),
+                Bond::new(7, 8, B::Double, None),
                 Bond::new(7, 9, B::Single, None),
                 Bond::new(9, 10, B::Single, None),
-                Bond::new(10, 0, B::Single, Some(1)),
+                Bond::new(10, 5, B::Single, Some(1)),
                 Bond::new(2, 11, B::Single, None),
             ],
         )];
         for (i, smile) in smiles.into_iter().enumerate() {
-            let got = Parser::new(scan(to_smarts(smile.to_owned()))).parse();
+            let smarts = to_smarts(dbg!(smile).to_owned());
+            let got = Parser::new(scan(dbg!(smarts))).parse();
             let want = &wants[i];
             assert_eq!(got.1, want.1);
         }
