@@ -21,7 +21,8 @@ pub(super) struct Evaluator {
     atoms: Vec<Atom>,
     bonds: Vec<Bond>,
     cur: usize,
-    /// connection table for ring bongs
+    /// connection table for ring bonds. used like a stack where labels are
+    /// pushed and then popped when used to allow repeats
     ctab: HashMap<usize, Vec<usize>>,
 }
 
@@ -88,7 +89,7 @@ impl Evaluator {
     }
 
     fn add_connection(&mut self, n: usize, a: usize) {
-        self.ctab.entry(n).or_insert(Vec::new()).push(a);
+        self.ctab.entry(n).or_default().push(a);
     }
 
     fn get_connection(&mut self, n: usize) -> usize {
@@ -122,8 +123,7 @@ impl Evaluator {
     fn atom(&mut self, a: Atom) {
         if let Some(&Expr::Connect(n)) = self.peek() {
             self.next();
-            // treat ctab as a stack so we can reuse labels
-            self.ctab.entry(n).or_insert(Vec::new()).push(a.mol_index);
+            self.add_connection(n, a.mol_index);
         }
         self.atoms.push(a);
     }
@@ -135,11 +135,7 @@ impl Evaluator {
                 Expr::Atom(a) => {
                     if let Some((_, &Expr::Connect(n))) = giter.peek() {
                         giter.next();
-                        // treat ctab as a stack so we can reuse labels
-                        self.ctab
-                            .entry(n)
-                            .or_insert(Vec::new())
-                            .push(a.mol_index);
+                        self.add_connection(n, a.mol_index);
                     }
                     self.atoms.push(a.clone());
                 }
