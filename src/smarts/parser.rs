@@ -25,7 +25,7 @@
 //! then evaluate, but I think I can turn my tokens directly into my desired
 //! Smarts struct
 
-use super::{scanner::Token, Atom, Bond, BondOrder};
+use super::{scanner::Token, Atom, Bond, BondOrder, Chiral};
 
 pub(super) struct Parser {
     /// `tokens` represents a single input SMARTS string decomposed into a
@@ -96,6 +96,7 @@ impl Parser {
 
     fn atom(&mut self) -> Atom {
         self.advance(); // discard LBrack signaling we're in here
+        let mut chirality = Chiral::None;
         let mut atomic_number = 0;
         let mut n_hydrogens = 0;
         let mut mol_index = 0;
@@ -121,6 +122,8 @@ impl Parser {
                     };
                     charge = -(n as isize);
                 }
+                Token::At => chirality = Chiral::Acw,
+                Token::AtAt => chirality = Chiral::Cw,
                 Token::RBrack => break,
                 Token::End => panic!("EOF while parsing atom"),
                 x => self.error("atom", x),
@@ -130,6 +133,7 @@ impl Parser {
             atomic_number,
             n_hydrogens,
             charge,
+            chirality,
             mol_index,
         }
     }
@@ -156,36 +160,25 @@ impl Parser {
         let mut order = BondOrder::Single;
         let mut ring_marker = None;
         loop {
-            if matches!(self.peek(), Token::LBrack | Token::RParen) {
-                // signals start of next atom or end of current group, don't
-                // consume in either case
+            if matches!(
+                self.peek(),
+                Token::LBrack | Token::RParen | Token::LParen
+            ) {
+                // signals start of next atom, end of current group, or
+                // beginning of nested group. in any case don't consume
                 break;
             }
 
             match self.advance() {
                 Token::Dash => order = BondOrder::Single,
                 Token::DoubleBond => order = BondOrder::Double,
-                // Token::Colon => {
-                //     // ring_marker can come on either side of the order symbols.
-                //     // TODO handle dash case too
-                //     if let Token::Digit(n) = self.peek() {
-                //         ring_marker = Some(*n);
-                //         self.advance();
-                //     }
-                //     order = BondOrder::Aromatic;
-                // }
-                Token::Digit(n) => {
-                    ring_marker = Some(n);
-                }
-                //     match self.advance() {
-                //         Token::Dash => order = BondOrder::Single,
-                //         Token::Colon => order = BondOrder::Aromatic,
-                //         Token::DoubleBond => order = BondOrder::Double,
-                //         Token::End => break,
-                //         x => self.error("inner bond", x),
-                //     }
-                // }
-                // Token::End => break,
+                Token::Colon => order = BondOrder::Aromatic,
+                Token::TripleBond => order = BondOrder::Triple,
+                Token::At => order = BondOrder::Ring,
+                Token::DownBond => order = BondOrder::Down,
+                Token::UpBond => order = BondOrder::Up,
+                Token::Digit(n) => ring_marker = Some(n),
+                Token::End => break,
                 x => self.error("bond", x),
             }
         }
@@ -210,11 +203,11 @@ mod tests {
         let tokens = scan(s.to_owned());
         let got = Parser::new(tokens).parse();
         let want_atoms = vec![
-            Atom::new(6, 3, 0, 1),
-            Atom::new(6, 2, 0, 2),
-            Atom::new(7, 1, 0, 3),
-            Atom::new(7, 1, 0, 4),
-            Atom::new(6, 3, 0, 5),
+            Atom::new(6, 3, 0, Chiral::None, 1),
+            Atom::new(6, 2, 0, Chiral::None, 2),
+            Atom::new(7, 1, 0, Chiral::None, 3),
+            Atom::new(7, 1, 0, Chiral::None, 4),
+            Atom::new(6, 3, 0, Chiral::None, 5),
         ];
         use BondOrder as B;
         let want_bonds = vec![
@@ -235,17 +228,17 @@ mod tests {
         use BondOrder as B;
         let wants = [(
             vec![
-                Atom::new(6, 3, 0, 1),
-                Atom::new(6, 1, 0, 2),
-                Atom::new(6, 0, 0, 3),
-                Atom::new(8, 0, 0, 4),
-                Atom::new(6, 0, 0, 5),
-                Atom::new(7, 0, 0, 6),
-                Atom::new(16, 0, 0, 7),
-                Atom::new(8, 0, 0, 8),
-                Atom::new(8, 0, 0, 9),
-                Atom::new(7, 1, 0, 10),
-                Atom::new(8, 1, 0, 11),
+                Atom::new(6, 3, 0, Chiral::None, 1),
+                Atom::new(6, 1, 0, Chiral::None, 2),
+                Atom::new(6, 0, 0, Chiral::None, 3),
+                Atom::new(8, 0, 0, Chiral::None, 4),
+                Atom::new(6, 0, 0, Chiral::None, 5),
+                Atom::new(7, 0, 0, Chiral::None, 6),
+                Atom::new(16, 0, 0, Chiral::None, 7),
+                Atom::new(8, 0, 0, Chiral::None, 8),
+                Atom::new(8, 0, 0, Chiral::None, 9),
+                Atom::new(7, 1, 0, Chiral::None, 10),
+                Atom::new(8, 1, 0, Chiral::None, 11),
             ],
             vec![
                 // TODO these are *not* correct, obviously. I'm wondering if I
@@ -267,8 +260,7 @@ mod tests {
             ],
         )];
         for (i, smile) in smiles.into_iter().enumerate() {
-            let got =
-                Parser::new(scan(dbg!(to_smarts(smile.to_owned())))).parse();
+            let got = Parser::new(scan(to_smarts(smile.to_owned()))).parse();
             let want = &wants[i];
             assert_eq!(got.1, want.1);
         }
@@ -280,7 +272,7 @@ mod tests {
             Dataset::load("testfiles/opt.json").unwrap().to_smiles();
         smiles.dedup();
         for smile in smiles {
-            let smarts = to_smarts(dbg!(smile));
+            let smarts = to_smarts(smile);
             let tokens = scan(smarts);
             Parser::new(tokens).parse();
         }

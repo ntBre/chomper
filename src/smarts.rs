@@ -7,11 +7,20 @@ use self::scanner::scan;
 mod parser;
 mod scanner;
 
+#[derive(Default, Debug, PartialEq)]
+pub enum Chiral {
+    Cw,
+    Acw,
+    #[default]
+    None,
+}
+
 #[derive(Debug, PartialEq)]
 pub struct Atom {
     pub atomic_number: usize,
     pub n_hydrogens: usize,
     pub charge: isize,
+    pub chirality: Chiral,
     pub mol_index: usize,
 }
 
@@ -20,12 +29,14 @@ impl Atom {
         atomic_number: usize,
         n_hydrogens: usize,
         charge: isize,
+        chirality: Chiral,
         mol_index: usize,
     ) -> Self {
         Self {
             atomic_number,
             n_hydrogens,
             charge,
+            chirality,
             mol_index,
         }
     }
@@ -37,6 +48,7 @@ pub enum BondOrder {
     Double,
     Triple,
     Aromatic,
+    Ring,
     Up,
     Down,
 }

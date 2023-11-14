@@ -10,6 +10,7 @@ pub(super) enum Token {
     Colon,
     Dash, // could be bond or charge at this point
     At,
+    AtAt,
     // counts
     Atom(usize),
     HCount(usize),
@@ -54,7 +55,14 @@ pub(super) fn scan(s: String) -> Vec<Token> {
             ')' => T::RParen,
             ':' => T::Colon,
             '-' => T::Dash,
-            '@' => T::At,
+            '@' => {
+                if chars.peek().is_some_and(|c| *c == '@') {
+                    chars.next();
+                    T::AtAt
+                } else {
+                    T::At
+                }
+            }
             '=' => T::DoubleBond,
             '\\' => T::DownBond,
             '/' => T::UpBond,
