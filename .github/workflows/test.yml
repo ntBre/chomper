@@ -30,28 +30,6 @@ jobs:
       - name: cargo generate-lockfile
         if: hashFiles('Cargo.lock') == ''
         run: cargo generate-lockfile
-      - name: Cache mopac
-        id: cache-mopac
-        uses: actions/cache@v3
-        with:
-          path: |
-            mopac/build/mopac
-            mopac/build/libmopac.so.1
-          key: ${{ runner.os }}-build-mopac
-      - name: install mopac
-        if: steps.cache-mopac.outputs.cache-hit != 'true'
-        run: |
-            sudo apt install -y python3 python3-numpy
-            git clone https://github.com/openmopac/mopac.git
-            cd mopac
-            mkdir build
-            cd build
-            cmake ..
-            make
-      - name: copy over mopac
-        run: |
-            mkdir -p /opt/mopac
-            cp mopac/build/mopac /opt/mopac/.
       # https://twitter.com/jonhoo/status/1571290371124260865
       - name: cargo test --locked
         run: cargo test --locked --all-features --all-targets -- --include-ignored
