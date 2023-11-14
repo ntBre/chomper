@@ -127,7 +127,16 @@ impl Parser {
                 Token::LParen => ret.push(self.grouping()),
                 Token::RParen => break, // for recursive calls from grouping
                 Token::Digit(n) => {
-                    ret.push(Expr::Connect(*n));
+                    if *n > 10 {
+                        // handling two adjacent connections that look like
+                        // -12-, for example
+                        let fst = *n / 10;
+                        let snd = *n % 10;
+                        ret.push(Expr::Connect(fst));
+                        ret.push(Expr::Connect(snd));
+                    } else {
+                        ret.push(Expr::Connect(*n));
+                    }
                     self.advance();
                 }
                 _ => ret.push(self.bond()),
