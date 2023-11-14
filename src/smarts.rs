@@ -2,8 +2,9 @@
 
 use crate::smarts::parser::Parser;
 
-use self::scanner::scan;
+use self::{evaluator::Evaluator, scanner::scan};
 
+mod evaluator;
 mod parser;
 mod scanner;
 
@@ -42,7 +43,7 @@ impl Atom {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub enum BondOrder {
     Single,
     Double,
@@ -53,22 +54,26 @@ pub enum BondOrder {
     Down,
 }
 
+impl std::fmt::Debug for BondOrder {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                BondOrder::Single => "-",
+                BondOrder::Double => "=",
+                BondOrder::Triple => "#",
+                BondOrder::Aromatic => ":",
+                BondOrder::Ring => "@",
+                BondOrder::Up => "/",
+                BondOrder::Down => "\\",
+            }
+        )
+    }
+}
 impl std::fmt::Debug for Bond {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let bond = match self.order {
-            BondOrder::Single => "-",
-            BondOrder::Double => "=",
-            BondOrder::Triple => "#",
-            BondOrder::Aromatic => ":",
-            BondOrder::Ring => "@",
-            BondOrder::Up => "/",
-            BondOrder::Down => "\\",
-        };
-        write!(f, "{}{}{}", self.atom1, bond, self.atom2)?;
-        if let Some(m) = self.ring_marker {
-            write!(f, " ({m})")?;
-        }
-        Ok(())
+        write!(f, "{}{:?}{}", self.atom1, self.order, self.atom2)
     }
 }
 
@@ -77,22 +82,14 @@ pub struct Bond {
     pub atom1: usize,
     pub atom2: usize,
     pub order: BondOrder,
-    /// optional digit for specifying a backreference to a connection
-    pub ring_marker: Option<usize>,
 }
 
 impl Bond {
-    pub fn new(
-        atom1: usize,
-        atom2: usize,
-        order: BondOrder,
-        ring_marker: Option<usize>,
-    ) -> Self {
+    pub fn new(atom1: usize, atom2: usize, order: BondOrder) -> Self {
         Self {
             atom1,
             atom2,
             order,
-            ring_marker,
         }
     }
 }
@@ -106,8 +103,9 @@ impl Smarts {
     pub fn parse(s: String) -> Self {
         let tokens = scan(s);
         let mut parser = Parser::new(tokens);
-        let _ = parser.parse();
-        todo!()
-        // Self { atoms, bonds }
+        let exprs = parser.parse();
+        let eval = Evaluator::new(exprs);
+        let (atoms, bonds) = eval.eval();
+        Self { atoms, bonds }
     }
 }

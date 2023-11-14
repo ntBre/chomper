@@ -27,12 +27,61 @@
 
 use super::{scanner::Token, Atom, BondOrder, Chiral};
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub enum Expr {
     Atom(Atom),
     Bond(BondOrder),
     Grouping(Vec<Expr>),
     Connect(usize),
+}
+
+impl std::fmt::Debug for Expr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Expr::Atom(a) => write!(
+                f,
+                "[#{}H{}{:+}:{}]",
+                a.atomic_number, a.n_hydrogens, a.charge, a.mol_index
+            ),
+            Expr::Bond(order) => write!(f, "{order:?}"),
+            Expr::Grouping(g) => write!(f, "Grouping({g:?})"),
+            Expr::Connect(n) => write!(f, "Connect({n})"),
+        }
+    }
+}
+
+impl Expr {
+    /// Returns `true` if the expr is [`Connect`].
+    ///
+    /// [`Connect`]: Expr::Connect
+    #[must_use]
+    pub fn is_connect(&self) -> bool {
+        matches!(self, Self::Connect(..))
+    }
+
+    /// Returns `true` if the expr is [`Grouping`].
+    ///
+    /// [`Grouping`]: Expr::Grouping
+    #[must_use]
+    pub fn is_grouping(&self) -> bool {
+        matches!(self, Self::Grouping(..))
+    }
+
+    /// Returns `true` if the expr is [`Atom`].
+    ///
+    /// [`Atom`]: Expr::Atom
+    #[must_use]
+    pub fn is_atom(&self) -> bool {
+        matches!(self, Self::Atom(..))
+    }
+
+    /// Returns `true` if the expr is [`Bond`].
+    ///
+    /// [`Bond`]: Expr::Bond
+    #[must_use]
+    pub fn is_bond(&self) -> bool {
+        matches!(self, Self::Bond(..))
+    }
 }
 
 pub(super) struct Parser {
