@@ -53,7 +53,26 @@ pub enum BondOrder {
     Down,
 }
 
-#[derive(Debug, PartialEq)]
+impl std::fmt::Debug for Bond {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let bond = match self.order {
+            BondOrder::Single => "-",
+            BondOrder::Double => "=",
+            BondOrder::Triple => "#",
+            BondOrder::Aromatic => ":",
+            BondOrder::Ring => "@",
+            BondOrder::Up => "/",
+            BondOrder::Down => "\\",
+        };
+        write!(f, "{}{}{}", self.atom1, bond, self.atom2)?;
+        if let Some(m) = self.ring_marker {
+            write!(f, " ({m})")?;
+        }
+        Ok(())
+    }
+}
+
+#[derive(PartialEq)]
 pub struct Bond {
     pub atom1: usize,
     pub atom2: usize,
