@@ -9,3 +9,6 @@ endif
 
 test:
 	cargo test -- $(testflags) $(ARGS)
+
+clippy:
+	cargo clippy --workspace --tests
