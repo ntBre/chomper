@@ -22,7 +22,6 @@ jobs:
       - uses: mamba-org/setup-micromamba@v1
         with:
           environment-file: env.yaml
-          activate-environment: dev
           init-shell: bash
       - name: Install ${{ matrix.toolchain }}
         uses: dtolnay/rust-toolchain@master
