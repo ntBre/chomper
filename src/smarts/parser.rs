@@ -70,23 +70,7 @@ impl Parser {
         ret
     }
 
-    // Vec<Expr>:
-    // Expr::Atom
-    // Expr::Bond(Single)
-    // Expr::Atom
-    // Expr::Grouping
-    //   Expr::Bond(Single)
-    //   Expr::Atom
-    //   Expr::Grouping
-    //     Expr::Bond(Double)
-    //     Expr::Atom
-    //   Expr::Bond
-    //   Expr::Atom
-    //   Expr::Connection(1)
-    //   Expr::Bond
-
     pub(super) fn parse(&mut self) -> Vec<Expr> {
-        // for updating bonds. this is not going to work at all for groupings
         let mut ret = Vec::new();
         while !self.at_end() {
             match self.peek() {
@@ -163,33 +147,16 @@ impl Parser {
     }
 
     fn bond(&mut self) -> Expr {
-        // we can't actually know atom2 when we call this. we'll have to tidy
-        // that up after the call. in fact, we can only determine the bond order
-        // from what we're parsing here
-        let mut order = BondOrder::Single;
-        loop {
-            if matches!(
-                self.peek(),
-                Token::LBrack | Token::RParen | Token::LParen | Token::Digit(_)
-            ) {
-                // signals start of next atom, end of current group, or
-                // beginning of nested group. in any case don't consume
-                break;
-            }
-
-            match self.advance() {
-                Token::Dash => order = BondOrder::Single,
-                Token::DoubleBond => order = BondOrder::Double,
-                Token::Colon => order = BondOrder::Aromatic,
-                Token::TripleBond => order = BondOrder::Triple,
-                Token::At => order = BondOrder::Ring,
-                Token::DownBond => order = BondOrder::Down,
-                Token::UpBond => order = BondOrder::Up,
-                Token::End => break,
-                x => self.error("bond", x),
-            }
+        match self.advance() {
+            Token::Dash => Expr::Bond(BondOrder::Single),
+            Token::DoubleBond => Expr::Bond(BondOrder::Double),
+            Token::Colon => Expr::Bond(BondOrder::Aromatic),
+            Token::TripleBond => Expr::Bond(BondOrder::Triple),
+            Token::At => Expr::Bond(BondOrder::Ring),
+            Token::DownBond => Expr::Bond(BondOrder::Down),
+            Token::UpBond => Expr::Bond(BondOrder::Up),
+            x => self.error("bond", x),
         }
-        Expr::Bond(order)
     }
 }
 
